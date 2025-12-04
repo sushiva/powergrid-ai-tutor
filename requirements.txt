@@ -15,10 +15,8 @@ arxiv
 requests
 beautifulsoup4
 
-#PDF Processing
-PyMuPDF
-pdfplumber  
-pypdf2
+# Document Processing
+pypdf
 
 # Additional utilities
 python-dotenv
