@@ -1,0 +1,24 @@
+# Core dependencies for Core RAG framework and Llama Index
+
+llama-index-core
+llama-index-embeddings-openai
+llama-index-llms-openai
+llama-index-llms-gemini
+llama-index-readers-file
+
+# Vector store integrations
+faiss-cpu 
+llama-index-vector-stores-faiss  
+
+# Data collection and parsing
+arxiv
+requests
+beautifulsoup4
+
+#PDF Processing
+PyMuPDF
+pdfplumber  
+pypdf2
+
+# Additional utilities
+python-dotenv
