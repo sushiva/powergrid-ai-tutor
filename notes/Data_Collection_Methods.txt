@@ -1,0 +1,73 @@
+What's Next - Phase 2 Options:
+According to your roadmap, Phase 2 covers:
+Option A: Data Collection (Chapters 6-10)
+Collect more PDFs (ArXiv papers, IEEE, NREL)
+Build data collection scripts
+Expand knowledge base to 100+ documents
+Better metadata extraction
+Option B: Advanced RAG (Chapters 16-20)
+Implement hybrid search (BM25 + semantic)
+Add reranking with Cohere
+Query routing
+Improve retrieval quality
+
+
+
+Phase 2: Data Collection Methods
+You'll use various tools to gather electrical engineering content:
+1. ArXiv API
+Search for renewable energy papers
+Download PDFs automatically
+Already have arxiv library installed
+2. Web Scraping
+BeautifulSoup for parsing HTML
+Scrape educational sites, documentation
+Extract clean text from web pages
+3. Perplexity/Web Search APIs
+Use Perplexity API to find relevant sources
+Or web search to discover papers/articles
+Curate high-quality content
+4. Manual Collection
+Download IEEE papers (if you have access)
+NREL reports
+Technical standards
+Open textbooks
+The Goal:
+Collect 50-100 documents about:
+Solar energy systems
+Power grid technology
+Renewable energy
+Electrical engineering fundamentals
+This gives your RAG system real knowledge to work with.
+
+
+Understanding the Numbers:
+852 Documents
+This is NOT 50 PDFs. Here's why:
+You have 50 PDF files
+Each PDF has multiple pages
+Each page becomes one "document" in the system
+852 = total number of pages across all 50 PDFs
+Example:
+Paper 1: 10 pages → 10 documents
+Paper 2: 15 pages → 15 documents
+Paper 3: 8 pages → 8 documents
+...and so on
+852 total pages from your 50 PDF files
+
+2166 Chunks
+After loading the 852 pages, the chunker splits them into smaller pieces:
+Each page contains multiple paragraphs/sections
+Chunker splits each page into smaller 512-token chunks
+852 pages → 2166 chunks (about 2.5 chunks per page on average)
+Why chunks?
+Better retrieval precision
+Matches specific parts of documents
+Fits within LLM context limits
+Simple Summary:
+50 PDFs
+  ↓ (each PDF has ~17 pages on average)
+852 Pages (documents)
+  ↓ (each page split into ~2.5 chunks)
+2166 Chunks (what gets embedded and searched)
+Your RAG system now searches across 2166 chunks from 50 research papers about electrical engineering! Does this make sense now?
