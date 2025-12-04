@@ -1,0 +1,40 @@
+There are TWO Different Indexes:
+1. FAISS Index (Vector Index)
+What it stores: Only numbers (embeddings/vectors)
+Purpose: Fast similarity search
+File: index.faiss
+Contains: 21 vectors, each with 384 dimensions
+Does NOT contain: Any text, metadata, or original documents
+Think of it as: A mathematical lookup table for finding similar vectors
+2. LlamaIndex (Document Index)
+What it stores: Everything needed for RAG
+Original document text
+Metadata (page numbers, sources)
+Mappings between vectors and text
+Purpose: Complete RAG orchestration
+Files: docstore.json, index_store.json, graph_store.json
+Contains: All the actual content
+Think of it as: The complete database with text and connections
+How They Work Together:
+User Query: "What is solar energy?"
+    ↓
+1. Query → Embedding (384 numbers)
+    ↓
+2. FAISS Index: Find similar vectors
+   Returns: Vector IDs [5, 12, 19]
+    ↓
+3. LlamaIndex: Look up text for those IDs
+   Returns: Actual document chunks with text
+    ↓
+4. LLM: Generate answer from retrieved text
+In Our Code:
+# FAISS part - just vectors
+self.faiss_index = faiss.IndexFlatL2(384)  # Pure vector math
+
+# LlamaIndex wrapper - manages everything
+self.vector_store = FaissVectorStore(self.faiss_index)  # Wraps FAISS
+self.index = VectorStoreIndex(...)  # Complete system
+Simple Analogy:
+FAISS Index = Phone book sorted by similarity (just numbers)
+LlamaIndex = Complete contact database (names, addresses, photos)
+You need BOTH to have a working system
