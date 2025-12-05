@@ -21,3 +21,6 @@ pypdf
 
 # Additional utilities
 python-dotenv
+
+# UI dependencies
+gradio
