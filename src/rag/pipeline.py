@@ -10,6 +10,7 @@ from src.data.embedders import EmbeddingManager
 from src.vector_store.faiss_store import FAISSVectorStore
 from src.rag.retrieval import Retriever
 from src.rag.generator import Generator
+from src.rag.reranker import Reranker
 
 
 class RAGPipeline:
@@ -17,13 +18,20 @@ class RAGPipeline:
     End-to-end RAG pipeline for document question answering.
     """
     
-    def __init__(self):
-        """Initialize the RAG pipeline components."""
+    def __init__(self, use_reranking: bool = False):
+        """
+        Initialize the RAG pipeline components.
+
+        Args:
+            use_reranking: Whether to use LLM reranking for better relevance
+        """
         self.vector_store = None
         self.index = None
         self.retriever = None
         self.generator = None
         self.embed_manager = None
+        self.reranker = None
+        self.use_reranking = use_reranking
     
     def build_from_documents(self, pdf_path: str, chunk_size: int = 512):
         """
@@ -64,9 +72,16 @@ class RAGPipeline:
         
         # Step 6: Initialize retriever and generator
         print("\n6. Initializing retriever and generator...")
-        self.retriever = Retriever(self.index, top_k=5)
+        # If using reranking, retrieve more chunks initially (top-10)
+        # Then rerank to get best 5
+        initial_top_k = 10 if self.use_reranking else 5
+        self.retriever = Retriever(self.index, top_k=initial_top_k)
         self.generator = Generator(self.index)
-        
+
+        # Initialize reranker if enabled
+        if self.use_reranking:
+            self.reranker = Reranker(top_n=5)
+
         print("\n" + "=" * 50)
         print("RAG pipeline ready!")
         print("=" * 50)
@@ -92,9 +107,16 @@ class RAGPipeline:
         
         # Initialize retriever and generator
         print("\n3. Initializing retriever and generator...")
-        self.retriever = Retriever(self.index, top_k=5)
+        # If using reranking, retrieve more chunks initially (top-10)
+        # Then rerank to get best 5
+        initial_top_k = 10 if self.use_reranking else 5
+        self.retriever = Retriever(self.index, top_k=initial_top_k)
         self.generator = Generator(self.index)
-        
+
+        # Initialize reranker if enabled
+        if self.use_reranking:
+            self.reranker = Reranker(top_n=5)
+
         print("\n" + "=" * 50)
         print("RAG pipeline ready!")
         print("=" * 50)
@@ -121,17 +143,24 @@ class RAGPipeline:
     def retrieve_only(self, question: str):
         """
         Only retrieve relevant chunks without generation.
-        
+
         Args:
             question: User's question
-            
+
         Returns:
-            Retrieved nodes with scores
+            Retrieved nodes with scores (reranked if enabled)
         """
         if self.retriever is None:
             raise ValueError("Pipeline not initialized. Call build_from_documents() or load_existing() first.")
-        
-        return self.retriever.retrieve(question) 
+
+        # Retrieve initial chunks
+        nodes = self.retriever.retrieve(question)
+
+        # Apply reranking if enabled
+        if self.use_reranking and self.reranker:
+            nodes = self.reranker.rerank(nodes, question)
+
+        return nodes 
     
     
     """

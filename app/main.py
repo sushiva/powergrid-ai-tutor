@@ -18,12 +18,18 @@ class PowerGridTutorUI:
     Gradio interface for the PowerGrid AI Tutor.
     """
     
-    def __init__(self):
-        """Initialize the RAG pipeline."""
+    def __init__(self, use_reranking: bool = False):
+        """
+        Initialize the RAG pipeline.
+
+        Args:
+            use_reranking: Whether to use LLM reranking for better relevance
+        """
         print("Initializing PowerGrid AI Tutor...")
-        self.pipeline = RAGPipeline()
+        self.use_reranking = use_reranking
+        self.pipeline = RAGPipeline(use_reranking=use_reranking)
         self.pipeline.load_existing(persist_dir="data/vector_stores/faiss_full")
-        print("PowerGrid AI Tutor ready!")
+        print(f"PowerGrid AI Tutor ready! (Reranking: {'ON' if use_reranking else 'OFF'})")
     
     def chat(self, message, history):
         """
@@ -56,11 +62,12 @@ class PowerGridTutorUI:
         with gr.Blocks() as interface:
             
             # Header
-            gr.HTML("""
+            reranking_status = "ON (MRR: 37.9%)" if self.use_reranking else "OFF (Hit Rate: 50.0%)"
+            gr.HTML(f"""
                 <div class="header">
                     <h1>⚡ PowerGrid AI Tutor</h1>
                     <p>Your Electrical Engineering & Renewable Energy Assistant</p>
-                    <p style="font-size: 14px;">Knowledge base: 50 research papers | 2166 chunks</p>
+                    <p style="font-size: 14px;">Knowledge base: 50 research papers | 2166 chunks | Reranking: {reranking_status}</p>
                 </div>
             """)
             
@@ -131,12 +138,20 @@ class PowerGridTutorUI:
             )
             
             # Footer
-            gr.Markdown("""
+            reranking_info = """
+            **LLM Reranking:** ON - Uses LLM to rerank retrieved chunks for better contextual relevance (MRR: 37.9%)
+            """ if self.use_reranking else """
+            **LLM Reranking:** OFF - Uses direct similarity search for broader topic coverage (Hit Rate: 50.0%)
+            """
+
+            gr.Markdown(f"""
             ---
-            **About:** This AI tutor uses Retrieval-Augmented Generation (RAG) to answer questions 
+            **About:** This AI tutor uses Retrieval-Augmented Generation (RAG) to answer questions
             about electrical engineering and renewable energy based on 50 research papers.
-            
+
             **Technology:** FAISS vector store | HuggingFace embeddings | Google Gemini LLM
+
+            {reranking_info}
             """)
         
         return interface
@@ -148,5 +163,22 @@ class PowerGridTutorUI:
 
 
 if __name__ == "__main__":
-    tutor = PowerGridTutorUI()
-    tutor.launch(share=False)  # Set share=True to get public link
+    import argparse
+
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description="PowerGrid AI Tutor")
+    parser.add_argument(
+        "--rerank",
+        action="store_true",
+        help="Enable LLM reranking for better contextual relevance (slower, costs more)"
+    )
+    parser.add_argument(
+        "--share",
+        action="store_true",
+        help="Create a public shareable link"
+    )
+    args = parser.parse_args()
+
+    # Launch UI with selected options
+    tutor = PowerGridTutorUI(use_reranking=args.rerank)
+    tutor.launch(share=args.share)
