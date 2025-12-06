@@ -30,14 +30,33 @@ class PowerGridTutorUI:
         self.pipeline = RAGPipeline(use_reranking=use_reranking)
         self.pipeline.load_existing(persist_dir="data/vector_stores/faiss_full")
         print(f"PowerGrid AI Tutor ready! (Reranking: {'ON' if use_reranking else 'OFF'})")
+
+        # Get list of available sources from the index
+        self.available_sources = self._get_available_sources()
+
+    def _get_available_sources(self):
+        """Get unique source files from the vector index."""
+        try:
+            # Get all nodes from the index
+            nodes = self.pipeline.index.docstore.docs.values()
+            sources = set()
+            for node in nodes:
+                if hasattr(node, 'metadata') and 'source' in node.metadata:
+                    sources.add(node.metadata['source'])
+            return sorted(list(sources))
+        except Exception as e:
+            print(f"Warning: Could not retrieve sources: {e}")
+            return []
     
-    def chat(self, message, history):
+    def chat(self, message, history, topic_filter, source_filter):
         """
-        Handle chat messages.
+        Handle chat messages with optional metadata filtering.
 
         Args:
             message: User's question
             history: Chat history (list of message dictionaries)
+            topic_filter: Selected topic filter
+            source_filter: Selected source filter
 
         Returns:
             Tuple of (updated history, cleared input, disabled button)
@@ -45,8 +64,15 @@ class PowerGridTutorUI:
         if not message.strip():
             return history, message, gr.update()
 
-        # Get answer from RAG pipeline
-        response = self.pipeline.query(message, return_sources=False)
+        # Build filters dictionary
+        filters = {}
+        if topic_filter and topic_filter != "All Topics":
+            filters['topic'] = topic_filter.lower()
+        if source_filter and source_filter != "All Sources":
+            filters['source'] = source_filter
+
+        # Get answer from RAG pipeline with filters
+        response = self.pipeline.query(message, filters=filters if filters else None, return_sources=False)
 
         # Append user message and assistant response to history
         # Gradio 6.x requires dictionaries with 'role' and 'content' keys
@@ -71,13 +97,28 @@ class PowerGridTutorUI:
                 </div>
             """)
             
+            # Metadata filters
+            with gr.Row():
+                topic_filter = gr.Dropdown(
+                    choices=["All Topics", "Solar", "Wind", "Battery", "Grid", "General"],
+                    value="All Topics",
+                    label="Filter by Topic",
+                    scale=1
+                )
+                source_filter = gr.Dropdown(
+                    choices=["All Sources"] + self.available_sources[:20],  # Limit to first 20 sources
+                    value="All Sources",
+                    label="Filter by Source Paper",
+                    scale=2
+                )
+
             # Main chat interface
             chatbot = gr.Chatbot(
                 height=500,
                 label="Chat with PowerGrid AI Tutor",
                 show_label=True
             )
-            
+
             # Input area
             with gr.Row():
                 msg = gr.Textbox(
@@ -120,14 +161,14 @@ class PowerGridTutorUI:
             # chat() returns (history, cleared_msg, disabled_button)
             submit.click(
                 fn=self.chat,
-                inputs=[msg, chatbot],
+                inputs=[msg, chatbot, topic_filter, source_filter],
                 outputs=[chatbot, msg, submit]
             )
 
             # Handle Enter key
             msg.submit(
                 fn=self.chat,
-                inputs=[msg, chatbot],
+                inputs=[msg, chatbot, topic_filter, source_filter],
                 outputs=[chatbot, msg, submit]
             )
 
@@ -149,7 +190,9 @@ class PowerGridTutorUI:
             **About:** This AI tutor uses Retrieval-Augmented Generation (RAG) to answer questions
             about electrical engineering and renewable energy based on 50 research papers.
 
-            **Technology:** FAISS vector store | HuggingFace embeddings | Google Gemini LLM
+            **Technology:** FAISS vector store | HuggingFace embeddings | Google Gemini LLM | Metadata Filtering
+
+            **Filters:** Use the dropdowns above to narrow search by topic (Solar/Wind/Battery/Grid) or source paper
 
             {reranking_info}
             """)

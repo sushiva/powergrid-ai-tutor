@@ -2,7 +2,7 @@
 Complete RAG pipeline that orchestrates all components.
 """
 
-from typing import Optional
+from typing import Optional, Dict
 from llama_index.core import VectorStoreIndex
 from src.data.loaders import DocumentLoader
 from src.data.chunkers import TextChunker
@@ -121,40 +121,65 @@ class RAGPipeline:
         print("RAG pipeline ready!")
         print("=" * 50)
     
-    def query(self, question: str, return_sources: bool = False):
+    def query(self, question: str, filters: Optional[Dict[str, str]] = None, return_sources: bool = False):
         """
-        Query the RAG system.
-        
+        Query the RAG system with optional metadata filtering.
+
         Args:
             question: User's question
+            filters: Optional metadata filters (e.g., {"topic": "solar", "source": "paper.pdf"})
             return_sources: Whether to return source chunks
-            
+
         Returns:
             Answer string or dict with answer and sources
         """
         if self.generator is None:
             raise ValueError("Pipeline not initialized. Call build_from_documents() or load_existing() first.")
-        
-        if return_sources:
-            return self.generator.generate_with_sources(question)
+
+        # For filtered queries, we need to use retrieve + generate separately
+        # because the generator doesn't directly support filters
+        if filters:
+            # Retrieve filtered nodes
+            nodes = self.retrieve_only(question, filters=filters)
+
+            # Generate answer from filtered nodes
+            if return_sources:
+                # Build context from nodes
+                context = "\n\n".join([node.node.text for node in nodes])
+                answer = self.generator.llm.complete(
+                    f"Context:\n{context}\n\nQuestion: {question}\n\nAnswer based only on the context above:"
+                ).text
+                return {"answer": answer, "sources": nodes}
+            else:
+                # Build context from nodes
+                context = "\n\n".join([node.node.text for node in nodes])
+                answer = self.generator.llm.complete(
+                    f"Context:\n{context}\n\nQuestion: {question}\n\nAnswer based only on the context above:"
+                ).text
+                return answer
         else:
-            return self.generator.generate(question)
+            # Use standard generation without filters
+            if return_sources:
+                return self.generator.generate_with_sources(question)
+            else:
+                return self.generator.generate(question)
     
-    def retrieve_only(self, question: str):
+    def retrieve_only(self, question: str, filters: Optional[Dict[str, str]] = None):
         """
         Only retrieve relevant chunks without generation.
 
         Args:
             question: User's question
+            filters: Optional metadata filters
 
         Returns:
-            Retrieved nodes with scores (reranked if enabled)
+            Retrieved nodes with scores (reranked if enabled, filtered by metadata)
         """
         if self.retriever is None:
             raise ValueError("Pipeline not initialized. Call build_from_documents() or load_existing() first.")
 
-        # Retrieve initial chunks
-        nodes = self.retriever.retrieve(question)
+        # Retrieve initial chunks with optional filters
+        nodes = self.retriever.retrieve(question, filters=filters)
 
         # Apply reranking if enabled
         if self.use_reranking and self.reranker:
