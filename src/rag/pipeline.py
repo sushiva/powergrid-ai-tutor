@@ -18,12 +18,13 @@ class RAGPipeline:
     End-to-end RAG pipeline for document question answering.
     """
     
-    def __init__(self, use_reranking: bool = False):
+    def __init__(self, use_reranking: bool = False, use_hybrid: bool = False):
         """
         Initialize the RAG pipeline components.
 
         Args:
             use_reranking: Whether to use LLM reranking for better relevance
+            use_hybrid: Whether to use hybrid search (BM25 + semantic)
         """
         self.vector_store = None
         self.index = None
@@ -32,6 +33,7 @@ class RAGPipeline:
         self.embed_manager = None
         self.reranker = None
         self.use_reranking = use_reranking
+        self.use_hybrid = use_hybrid
     
     def build_from_documents(self, pdf_path: str, chunk_size: int = 512):
         """
@@ -75,7 +77,7 @@ class RAGPipeline:
         # If using reranking, retrieve more chunks initially (top-10)
         # Then rerank to get best 5
         initial_top_k = 10 if self.use_reranking else 5
-        self.retriever = Retriever(self.index, top_k=initial_top_k)
+        self.retriever = Retriever(self.index, top_k=initial_top_k, use_hybrid=self.use_hybrid)
         self.generator = Generator(self.index)
 
         # Initialize reranker if enabled
@@ -110,7 +112,7 @@ class RAGPipeline:
         # If using reranking, retrieve more chunks initially (top-10)
         # Then rerank to get best 5
         initial_top_k = 10 if self.use_reranking else 5
-        self.retriever = Retriever(self.index, top_k=initial_top_k)
+        self.retriever = Retriever(self.index, top_k=initial_top_k, use_hybrid=self.use_hybrid)
         self.generator = Generator(self.index)
 
         # Initialize reranker if enabled
