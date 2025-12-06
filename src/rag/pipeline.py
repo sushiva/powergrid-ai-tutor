@@ -3,7 +3,7 @@ Complete RAG pipeline that orchestrates all components.
 """
 
 from typing import Optional, Dict
-from llama_index.core import VectorStoreIndex
+from llama_index.core import VectorStoreIndex, Settings
 from src.data.loaders import DocumentLoader
 from src.data.chunkers import TextChunker
 from src.data.embedders import EmbeddingManager
@@ -142,18 +142,18 @@ class RAGPipeline:
             # Retrieve filtered nodes
             nodes = self.retrieve_only(question, filters=filters)
 
-            # Generate answer from filtered nodes
+            # Generate answer from filtered nodes using global LLM
             if return_sources:
                 # Build context from nodes
                 context = "\n\n".join([node.node.text for node in nodes])
-                answer = self.generator.llm.complete(
+                answer = Settings.llm.complete(
                     f"Context:\n{context}\n\nQuestion: {question}\n\nAnswer based only on the context above:"
                 ).text
                 return {"answer": answer, "sources": nodes}
             else:
                 # Build context from nodes
                 context = "\n\n".join([node.node.text for node in nodes])
-                answer = self.generator.llm.complete(
+                answer = Settings.llm.complete(
                     f"Context:\n{context}\n\nQuestion: {question}\n\nAnswer based only on the context above:"
                 ).text
                 return answer
