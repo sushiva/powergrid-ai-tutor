@@ -11,6 +11,7 @@ from src.vector_store.faiss_store import FAISSVectorStore
 from src.rag.retrieval import Retriever
 from src.rag.generator import Generator
 from src.rag.reranker import Reranker
+from src.rag.query_expander import QueryExpander
 
 
 class RAGPipeline:
@@ -18,13 +19,14 @@ class RAGPipeline:
     End-to-end RAG pipeline for document question answering.
     """
     
-    def __init__(self, use_reranking: bool = False, use_hybrid: bool = False):
+    def __init__(self, use_reranking: bool = False, use_hybrid: bool = False, use_query_expansion: bool = False):
         """
         Initialize the RAG pipeline components.
 
         Args:
             use_reranking: Whether to use LLM reranking for better relevance
             use_hybrid: Whether to use hybrid search (BM25 + semantic)
+            use_query_expansion: Whether to use LLM-based query expansion
         """
         self.vector_store = None
         self.index = None
@@ -32,8 +34,10 @@ class RAGPipeline:
         self.generator = None
         self.embed_manager = None
         self.reranker = None
+        self.query_expander = None
         self.use_reranking = use_reranking
         self.use_hybrid = use_hybrid
+        self.use_query_expansion = use_query_expansion
     
     def build_from_documents(self, pdf_path: str, chunk_size: int = 512):
         """
@@ -84,10 +88,14 @@ class RAGPipeline:
         if self.use_reranking:
             self.reranker = Reranker(top_n=5)
 
+        # Initialize query expander if enabled
+        if self.use_query_expansion:
+            self.query_expander = QueryExpander(max_expansions=5)
+
         print("\n" + "=" * 50)
         print("RAG pipeline ready!")
         print("=" * 50)
-    
+
     def load_existing(self, persist_dir: str = "data/vector_stores/faiss"):
         """
         Load an existing vector store instead of building from scratch.
@@ -119,10 +127,14 @@ class RAGPipeline:
         if self.use_reranking:
             self.reranker = Reranker(top_n=5)
 
+        # Initialize query expander if enabled
+        if self.use_query_expansion:
+            self.query_expander = QueryExpander(max_expansions=5)
+
         print("\n" + "=" * 50)
         print("RAG pipeline ready!")
         print("=" * 50)
-    
+
     def query(self, question: str, filters: Optional[Dict[str, str]] = None, return_sources: bool = False):
         """
         Query the RAG system with optional metadata filtering.
@@ -138,10 +150,15 @@ class RAGPipeline:
         if self.generator is None:
             raise ValueError("Pipeline not initialized. Call build_from_documents() or load_existing() first.")
 
+        # Expand query if enabled
+        search_query = question
+        if self.use_query_expansion and self.query_expander:
+            search_query = self.query_expander.expand(question)
+
         # For filtered queries, we need to use retrieve + generate separately
         # because the generator doesn't directly support filters
         if filters:
-            # Retrieve filtered nodes
+            # Retrieve filtered nodes using expanded query
             nodes = self.retrieve_only(question, filters=filters)
 
             # Generate answer from filtered nodes using global LLM
@@ -180,8 +197,13 @@ class RAGPipeline:
         if self.retriever is None:
             raise ValueError("Pipeline not initialized. Call build_from_documents() or load_existing() first.")
 
-        # Retrieve initial chunks with optional filters
-        nodes = self.retriever.retrieve(question, filters=filters)
+        # Expand query if enabled
+        search_query = question
+        if self.use_query_expansion and self.query_expander:
+            search_query = self.query_expander.expand(question)
+
+        # Retrieve initial chunks with optional filters using expanded query
+        nodes = self.retriever.retrieve(search_query, filters=filters)
 
         # Apply reranking if enabled
         if self.use_reranking and self.reranker:
