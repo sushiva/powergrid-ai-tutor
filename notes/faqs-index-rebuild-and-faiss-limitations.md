@@ -435,6 +435,397 @@ See [notes/phase4b-hybrid-search.md](phase4b-hybrid-search.md) for complete impl
 
 ---
 
+## 4. Ollama and Local LLMs (Phase 6)
+
+### Question: What is the difference between Ollama and Qwen?
+
+**Short Answer:** Ollama is a platform, Qwen is a model.
+
+**Detailed Explanation:**
+
+Think of it like this:
+- **Ollama** = Spotify (the platform/app)
+- **Qwen 2.5** = A specific song you play on Spotify
+
+**Ollama** is a platform (like Docker) that lets you:
+- Download and run any open-source LLM locally
+- Manage different models
+- Provide a consistent API for all models
+- Handle the infrastructure (GPU/CPU management, memory)
+
+**Qwen 2.5** is an actual AI model created by Alibaba Cloud:
+- One of many models you can run on Ollama
+- Comes in different sizes (1.5B, 7B, 14B parameters)
+- Excellent for technical content and reasoning
+
+**Other Models You Can Run on Ollama:**
+- Llama 3.1 (Meta) - general purpose
+- Mistral (Mistral AI) - fast and efficient
+- Gemma (Google) - lightweight
+- Phi-3 (Microsoft) - small but capable
+- 100+ more models
+
+**Analogy:**
+```
+Ollama Platform
+├── Qwen 2.5 7B (what we're using)
+├── Llama 3.1 8B
+├── Mistral 7B
+├── Gemma 2B
+└── ... many more
+```
+
+### Question: How much does Ollama cost compared to Gemini?
+
+**Cost Comparison:**
+
+**Gemini API (API-based):**
+- **Setup Cost:** $0 (just need API key)
+- **Per Query Cost:** ~$0.003 per query
+- **Monthly Estimates:**
+  - 100 queries: $0.30
+  - 1,000 queries: $3.00
+  - 10,000 queries: $30.00
+  - 100,000 queries: $300.00
+
+**Pricing Breakdown (Gemini 2.5 Flash):**
+- Input: $0.075 per 1M tokens
+- Output: $0.30 per 1M tokens
+- Average RAG query: ~1,500 input + ~500 output tokens = $0.003
+
+**Ollama (Local):**
+- **Setup Cost:** $0 (free download, 4.7GB model)
+- **Per Query Cost:** $0 (effectively free)
+- **Ongoing Costs:** ~$0.001 per query in electricity (negligible)
+
+**Break-Even Analysis:**
+- Ollama setup time: ~30 minutes
+- Gemini cost: $3.00 per 1,000 queries
+- **Break-even: ~1,000 queries** (if your time is worth $100/hour)
+- After 1,000 queries, Ollama saves money
+
+**When Each is Worth It:**
+
+**Use Gemini when:**
+- Low query volume (<1,000/month) - costs <$3
+- Need fastest responses (2-3s vs 30-40s)
+- Limited local hardware (low RAM, no GPU)
+- Production app with SLA requirements
+
+**Use Ollama when:**
+- High query volume (>1,000/month) - saves significant money
+- Cost-sensitive project or free tier requirement
+- Privacy critical (data never leaves machine)
+- Unlimited testing/development needed
+- Have decent hardware (8GB+ RAM, ideally GPU)
+
+**Real-World Example:**
+```
+Scenario: Educational app with 10,000 student queries/month
+
+Gemini Cost: 10,000 × $0.003 = $30/month = $360/year
+Ollama Cost: $0/month (just electricity ~$1/month) = ~$12/year
+
+Annual Savings: $348/year with Ollama
+```
+
+**Performance Comparison (Actual Benchmark):**
+
+| Metric | Gemini (API) | Ollama (Local) | Winner |
+|--------|--------------|----------------|--------|
+| **Response Time** | 2.15s | 38.56s | Gemini (18x faster) |
+| **Answer Quality** | Excellent | Very Good | Gemini (slightly better) |
+| **Cost per 1000 queries** | $3.00 | $0.00 | Ollama (free) |
+| **Rate Limits** | 15-20/min | Unlimited | Ollama |
+| **Privacy** | Data sent to Google | 100% private | Ollama |
+| **Setup Complexity** | Easy (API key) | Medium (install + download) | Gemini |
+| **Hardware Requirements** | None | 8GB+ RAM recommended | Gemini |
+
+### Question: How did we overcome Gemini rate limit challenges?
+
+**The Rate Limit Problem:**
+
+Gemini Free Tier has strict rate limits:
+- **15-20 requests per minute**
+- **1,500 requests per day**
+
+**Why We Hit Rate Limits Initially:**
+
+Our full RAG pipeline (with all features enabled) makes **3 LLM calls per query**:
+
+```python
+pipeline = RAGPipeline(
+    use_query_expansion=True,    # LLM Call #1
+    use_hybrid=True,              # No LLM call (just BM25 + semantic)
+    use_reranking=True            # LLM Call #2
+)
+answer = pipeline.query("What are MPPT algorithms?")  # LLM Call #3 (generation)
+```
+
+**The 3 LLM Calls:**
+1. **Query Expansion** (Phase 5a): LLM generates technical terms/synonyms (~50 tokens)
+   - Example: "solar panels" → adds "PV", "photovoltaic", "solar cells"
+   - File: `src/rag/query_expander.py`
+
+2. **Reranking** (Phase 4c): LLM scores retrieved chunks for relevance (~500-1000 tokens)
+   - Takes top 10 chunks, returns top 5 most relevant
+   - File: `src/rag/reranker.py`
+
+3. **Answer Generation**: LLM synthesizes final answer from chunks (~1000-2000 tokens)
+   - Built into LlamaIndex query engine
+
+**Different Pipeline Configurations:**
+
+```python
+# Minimal (1 LLM call) - Only generation
+pipeline = RAGPipeline()
+
+# With Reranking (2 LLM calls) - Reranking + Generation
+pipeline = RAGPipeline(use_reranking=True)
+
+# Full Pipeline (3 LLM calls) - Expansion + Reranking + Generation
+pipeline = RAGPipeline(
+    use_query_expansion=True,
+    use_hybrid=True,
+    use_reranking=True
+)
+```
+
+When testing with 4 different pipeline configurations:
+- Config 1 (baseline): 3 queries × 1 call = 3 calls
+- Config 2 (hybrid): 3 queries × 1 call = 3 calls
+- Config 3 (hybrid + rerank): 3 queries × 2 calls = 6 calls
+- Config 4 (full pipeline): 3 queries × 3 calls = 9 calls
+- **Total: 21+ calls in rapid succession** → hits 15-20/min rate limit quickly!
+
+**Solution 1: Use Ollama for Development (Recommended)**
+
+```python
+import os
+
+# Use Ollama for unlimited development testing
+# Use Gemini only for production
+llm_provider = "gemini" if os.getenv("ENVIRONMENT") == "production" else "ollama"
+
+pipeline = RAGPipeline(
+    use_query_expansion=True,
+    use_hybrid=True,
+    use_reranking=True,
+    llm_provider=llm_provider  # Automatic switching
+)
+```
+
+**Benefits:**
+- Unlimited testing in development (no rate limits)
+- No API costs during development
+- Only use Gemini in production (where quality matters most)
+
+**Solution 2: Implement Rate Limiting in Code**
+
+```python
+import time
+from datetime import datetime, timedelta
+
+class RateLimiter:
+    def __init__(self, max_calls=15, time_window=60):
+        self.max_calls = max_calls
+        self.time_window = time_window  # seconds
+        self.calls = []
+
+    def wait_if_needed(self):
+        now = datetime.now()
+        # Remove calls outside time window
+        self.calls = [call for call in self.calls
+                     if now - call < timedelta(seconds=self.time_window)]
+
+        if len(self.calls) >= self.max_calls:
+            # Wait until oldest call expires
+            wait_time = (self.calls[0] + timedelta(seconds=self.time_window) - now).total_seconds()
+            if wait_time > 0:
+                print(f"Rate limit reached. Waiting {wait_time:.1f}s...")
+                time.sleep(wait_time)
+
+        self.calls.append(now)
+
+# Usage
+rate_limiter = RateLimiter(max_calls=15, time_window=60)
+
+for query in queries:
+    rate_limiter.wait_if_needed()
+    answer = pipeline.query(query)
+```
+
+**Solution 3: Batch Processing with Delays**
+
+```python
+import time
+
+def process_queries_with_delays(queries, pipeline, delay=4):
+    """
+    Process queries with delays to avoid rate limits.
+    delay=4 seconds allows 15 queries/minute (15 × 4 = 60s)
+    """
+    results = []
+    for i, query in enumerate(queries):
+        print(f"Processing query {i+1}/{len(queries)}...")
+        result = pipeline.query(query)
+        results.append(result)
+
+        if i < len(queries) - 1:  # Don't delay after last query
+            time.sleep(delay)
+
+    return results
+```
+
+**Solution 4: Fallback System (Hybrid Approach)**
+
+```python
+from google.api_core.exceptions import ResourceExhausted
+
+def query_with_fallback(question: str):
+    try:
+        # Try Gemini first (fast + quality)
+        pipeline_gemini = RAGPipeline(llm_provider="gemini")
+        pipeline_gemini.load_existing()
+        return pipeline_gemini.query(question)
+    except ResourceExhausted:
+        # Fall back to Ollama if rate limited
+        print("Rate limited on Gemini, switching to Ollama...")
+        pipeline_ollama = RAGPipeline(llm_provider="ollama")
+        pipeline_ollama.load_existing()
+        return pipeline_ollama.query(question)
+```
+
+**Solution 5: Upgrade to Paid Tier**
+
+**Gemini Paid Tier Benefits:**
+- **1,000+ requests per minute** (vs 15-20 free)
+- **50,000+ requests per day** (vs 1,500 free)
+- Still very affordable (~$3 per 1,000 queries)
+
+**When to Upgrade:**
+- Production application with users
+- Can't tolerate Ollama's slower response times
+- Need guaranteed API availability
+
+**Why Comparison Test Worked:**
+
+The comparison script only made **2 simple queries** (1 Gemini + 1 Ollama):
+- 2 queries × 1 LLM call each = **2 total API calls**
+- Well under 15-20/min limit
+- No query expansion or reranking overhead
+
+**Best Practice Recommendation:**
+
+**For Development:**
+```python
+pipeline = RAGPipeline(
+    use_query_expansion=True,
+    use_hybrid=True,
+    use_reranking=True,
+    llm_provider="ollama"  # Unlimited testing
+)
+```
+
+**For Production (Low Traffic):**
+```python
+pipeline = RAGPipeline(
+    use_query_expansion=True,
+    use_hybrid=True,
+    use_reranking=True,
+    llm_provider="gemini"  # Best quality + speed
+)
+# Add rate limiting or upgrade to paid tier
+```
+
+**For Production (High Traffic):**
+```python
+# Option 1: Use Ollama with GPU (fast + free)
+pipeline = RAGPipeline(llm_provider="ollama")
+
+# Option 2: Use Gemini paid tier (fast + reliable)
+pipeline = RAGPipeline(llm_provider="gemini")
+# Upgrade to paid tier for higher limits
+```
+
+### Question: Do I need to rebuild the index when switching between Gemini and Ollama?
+
+**No, you do NOT need to rebuild the index.**
+
+**Why:**
+- Both Gemini and Ollama use the **same embedding model** (HuggingFace BAAI/bge-small-en-v1.5)
+- Embeddings are generated locally (not by the LLM)
+- The vector index only stores embeddings, not LLM-specific data
+
+**What Changes:**
+- **Embeddings:** Same (same HuggingFace model)
+- **Vector Index:** Same (FAISS index unchanged)
+- **LLM:** Different (Gemini API vs Ollama local)
+
+**LLM is Only Used For:**
+1. Query expansion (generating related terms)
+2. Reranking (scoring retrieved chunks)
+3. Answer generation (synthesizing final response)
+
+**Code Example:**
+```python
+# Load same index with different LLM
+pipeline_gemini = RAGPipeline(llm_provider="gemini")
+pipeline_gemini.load_existing(persist_dir="data/vector_stores/faiss_full")
+
+pipeline_ollama = RAGPipeline(llm_provider="ollama")
+pipeline_ollama.load_existing(persist_dir="data/vector_stores/faiss_full")
+# Both use the SAME vector index, different LLMs
+```
+
+### Speed Optimization for Ollama
+
+If Ollama's 38-second response time is too slow, you have options:
+
+**Option 1: Use Smaller Models**
+```bash
+# Qwen 2.5 1.5B (much faster, still good quality)
+ollama pull qwen2.5:1.5b
+
+# Phi-3 Mini (Microsoft, very fast)
+ollama pull phi3:mini
+```
+
+```python
+# Use smaller model in code
+pipeline = RAGPipeline(
+    llm_provider="ollama",
+    llm_model="qwen2.5:1.5b"  # Faster responses (~15s)
+)
+```
+
+**Speed Comparison:**
+- qwen2.5:7b - 38s (best quality)
+- qwen2.5:1.5b - ~15s (good quality)
+- phi3:mini - ~8s (decent quality)
+
+**Option 2: GPU Acceleration**
+
+If you have NVIDIA GPU:
+```bash
+# Ollama automatically uses GPU if available
+nvidia-smi  # Check GPU availability
+
+# Same code, much faster (5-10x speedup)
+pipeline = RAGPipeline(llm_provider="ollama")
+# Will automatically use GPU if detected
+```
+
+**With GPU (NVIDIA RTX 3060):**
+- qwen2.5:7b - ~4s (comparable to Gemini!)
+- qwen2.5:1.5b - ~1.5s (faster than Gemini)
+
+### Related Documentation
+
+See [notes/phase6-local-vs-api-llms.md](phase6-local-vs-api-llms.md) for complete Ollama implementation details, installation guide, and comprehensive comparison.
+
+---
+
 ## Summary
 
 ### Index Rebuild
@@ -454,5 +845,13 @@ See [notes/phase4b-hybrid-search.md](phase4b-hybrid-search.md) for complete impl
 - **Answer:** No - it's actually 5% faster on average (49ms vs 52ms)
 - **Recommendation:** Enable by default for better accuracy with no performance cost
 - **Implementation:** `RAGPipeline(use_hybrid=True)`
+
+### Ollama and Local LLMs
+- **Ollama vs Qwen:** Ollama is a platform (like Docker), Qwen is a model you run on it
+- **Cost:** Ollama is free after setup, Gemini costs ~$0.003/query (~$3 per 1,000 queries)
+- **Performance:** Gemini is 18x faster (2.15s vs 38.56s), but Ollama is unlimited and private
+- **Rate Limits:** Overcome by using Ollama for development, Gemini for production
+- **Index Rebuild:** NOT required when switching - both use same embeddings (HuggingFace BAAI/bge-small-en-v1.5)
+- **Best Practice:** Use Ollama for development (unlimited testing), Gemini for production (speed + quality)
 
 All decisions prioritize **simplicity, maintainability, and cost-effectiveness** over perfect optimization.

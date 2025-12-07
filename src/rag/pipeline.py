@@ -19,7 +19,7 @@ class RAGPipeline:
     End-to-end RAG pipeline for document question answering.
     """
     
-    def __init__(self, use_reranking: bool = False, use_hybrid: bool = False, use_query_expansion: bool = False):
+    def __init__(self, use_reranking: bool = False, use_hybrid: bool = False, use_query_expansion: bool = False, llm_provider: str = "gemini"):
         """
         Initialize the RAG pipeline components.
 
@@ -27,6 +27,7 @@ class RAGPipeline:
             use_reranking: Whether to use LLM reranking for better relevance
             use_hybrid: Whether to use hybrid search (BM25 + semantic)
             use_query_expansion: Whether to use LLM-based query expansion
+            llm_provider: Which LLM provider to use ("gemini" or "ollama")
         """
         self.vector_store = None
         self.index = None
@@ -38,6 +39,7 @@ class RAGPipeline:
         self.use_reranking = use_reranking
         self.use_hybrid = use_hybrid
         self.use_query_expansion = use_query_expansion
+        self.llm_provider = llm_provider
     
     def build_from_documents(self, pdf_path: str, chunk_size: int = 512):
         """
@@ -65,7 +67,7 @@ class RAGPipeline:
         
         # Step 3: Initialize embeddings
         print("\n3. Initializing embedding model...")
-        self.embed_manager = EmbeddingManager()
+        self.embed_manager = EmbeddingManager(llm_provider=self.llm_provider)
         
         # Step 4: Build vector store
         print("\n4. Building vector store...")
@@ -108,7 +110,7 @@ class RAGPipeline:
         
         # Initialize embeddings (needed for querying)
         print("\n1. Initializing embedding model...")
-        self.embed_manager = EmbeddingManager()
+        self.embed_manager = EmbeddingManager(llm_provider=self.llm_provider)
         
         # Load vector store
         print("\n2. Loading vector store...")

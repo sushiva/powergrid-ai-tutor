@@ -3,11 +3,12 @@ Embedding generation for converting text to vector representations.
 """
 
 import os
-from typing import List
+from typing import List, Literal
 from dotenv import load_dotenv
 from llama_index.core import Settings
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.llms.gemini import Gemini
+from llama_index.llms.ollama import Ollama
 
 # Load environment variables from .env file
 load_dotenv()
@@ -19,44 +20,65 @@ class EmbeddingManager:
     Sets up global LlamaIndex settings for embeddings and LLM.
     """
     
-    def __init__(self, 
+    def __init__(self,
                  embedding_model: str = "BAAI/bge-small-en-v1.5",
-                 llm_model: str = "models/gemini-2.5-flash",
+                 llm_provider: Literal["gemini", "ollama"] = "gemini",
+                 llm_model: str = None,
                  temperature: float = 0.1):
         """
         Initialize embedding and LLM models.
         Uses local HuggingFace embeddings (no API calls, no rate limits).
-        
+
         Args:
             embedding_model: HuggingFace embedding model to use
-            llm_model: Gemini LLM model to use for generation
+            llm_provider: Which LLM provider to use ("gemini" or "ollama")
+            llm_model: Specific model to use. Defaults:
+                      - "models/gemini-2.5-flash" for gemini
+                      - "qwen2.5:7b" for ollama
             temperature: LLM temperature (lower = more deterministic)
         """
-        # Get API key for LLM only
-        api_key = os.getenv("GOOGLE_API_KEY")
-        if not api_key:
-            raise ValueError("GOOGLE_API_KEY not found in environment variables")
-        
+        # Set default models based on provider
+        if llm_model is None:
+            llm_model = "models/gemini-2.5-flash" if llm_provider == "gemini" else "qwen2.5:7b"
+
         # Initialize LOCAL embedding model (runs on your machine)
         # BAAI/bge-small-en-v1.5 is small, fast, and effective
         print("Loading local embedding model (this may take a moment on first run)...")
         self.embed_model = HuggingFaceEmbedding(
             model_name=embedding_model
         )
-        
-        # Initialize LLM (still uses API for generation only)
-        self.llm = Gemini(
-            model=llm_model,
-            api_key=api_key,
-            temperature=temperature
-        )
-        
+
+        # Initialize LLM based on provider
+        if llm_provider == "gemini":
+            # Get API key for Gemini
+            api_key = os.getenv("GOOGLE_API_KEY")
+            if not api_key:
+                raise ValueError("GOOGLE_API_KEY not found in environment variables")
+
+            self.llm = Gemini(
+                model=llm_model,
+                api_key=api_key,
+                temperature=temperature
+            )
+            print(f"Initialized Gemini LLM: {llm_model}")
+
+        elif llm_provider == "ollama":
+            # Initialize Ollama (local, no API key needed)
+            self.llm = Ollama(
+                model=llm_model,
+                request_timeout=300.0,  # 5 minutes for local model
+                temperature=temperature
+            )
+            print(f"Initialized Ollama LLM: {llm_model}")
+
+        else:
+            raise ValueError(f"Unknown LLM provider: {llm_provider}. Use 'gemini' or 'ollama'")
+
         # Set global settings for LlamaIndex
         Settings.embed_model = self.embed_model
         Settings.llm = self.llm
-        
+
         print(f"Initialized local embeddings: {embedding_model}")
-        print(f"Initialized LLM: {llm_model}")
     
     def get_embedding_model(self):
         """Return the embedding model instance"""
