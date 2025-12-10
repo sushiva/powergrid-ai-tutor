@@ -18,20 +18,20 @@ except ImportError:
 
 
 class QueryExpander:
- """
- Expands user queries with related terms, synonyms, and acronyms
- to improve retrieval accuracy, especially for BM25 keyword search.
- """
+    """
+    Expands user queries with related terms, synonyms, and acronyms
+    to improve retrieval accuracy, especially for BM25 keyword search.
+    """
 
- def __init__(self, max_expansions: int = None):e):
- """
- Initialize query expander.
+    def __init__(self, max_expansions: int = None):
+        """
+        Initialize query expander.
 
- Args:
- max_expansions: Maximum number of expansion terms to add (uses config.py if not provided)
- """
- self.max_expansions = max_expansions if max_expansions is not None else QUERY_EXPANSION["max_expansions"]
- self.expansion_prompt_template = """You are a power systems and renewable energy expert.
+        Args:
+            max_expansions: Maximum number of expansion terms to add (uses config.py if not provided)
+        """
+        self.max_expansions = max_expansions if max_expansions is not None else QUERY_EXPANSION["max_expansions"]
+        self.expansion_prompt_template = """You are a power systems and renewable energy expert.
 Your task is to expand the user's query with related technical terms, synonyms, and acronyms.
 
 User Query: {query}
@@ -48,81 +48,81 @@ If the query is already very specific with technical terms, return fewer or no e
 
 Expansion terms:"""
 
- def expand(self, query: str) -> str:
- """
- Expand a query with related technical terms.
+    def expand(self, query: str) -> str:
+        """
+        Expand a query with related technical terms.
 
- Args:
- query: Original user query
+        Args:
+            query: Original user query
 
- Returns:
- Expanded query string combining original + expansion terms
- """
- # Generate expansion terms using LLM
- prompt = self.expansion_prompt_template.format(
- query=query,
- max_expansions=self.max_expansions
- )
+        Returns:
+            Expanded query string combining original + expansion terms
+        """
+        # Generate expansion terms using LLM
+        prompt = self.expansion_prompt_template.format(
+            query=query,
+            max_expansions=self.max_expansions
+        )
 
- response = Settings.llm.complete(prompt).text.strip()
+        response = Settings.llm.complete(prompt).text.strip()
 
- # Parse expansion terms (one per line)
- expansion_terms = [
- term.strip()
- for term in response.split('\n')
- if term.strip() and not term.strip().startswith('#')
- ]
+        # Parse expansion terms (one per line)
+        expansion_terms = [
+            term.strip()
+            for term in response.split('\n')
+            if term.strip() and not term.strip().startswith('#')
+        ]
 
- # Limit to max_expansions
- expansion_terms = expansion_terms[:self.max_expansions]
+        # Limit to max_expansions
+        expansion_terms = expansion_terms[:self.max_expansions]
 
- # Combine original query with expansion terms
- if expansion_terms:
- expanded_query = f"{query} {' '.join(expansion_terms)}"
- else:
- expanded_query = query
+        # Combine original query with expansion terms
+        if expansion_terms:
+            expanded_query = f"{query} {' '.join(expansion_terms)}"
+        else:
+            expanded_query = query
 
- return expanded_query
+        return expanded_query
 
- def expand_with_details(self, query: str) -> dict:
- """
- Expand query and return detailed information about the expansion.
+    def expand_with_details(self, query: str) -> dict:
+        """
+        Expand query and return detailed information about the expansion.
 
- Args:
- query: Original user query
+        Args:
+            query: Original user query
 
- Returns:
- Dictionary with original query, expansion terms, and expanded query
- """
- # Generate expansion terms using LLM
- prompt = self.expansion_prompt_template.format(
- query=query,
- max_expansions=self.max_expansions
- )
+        Returns:
+            Dictionary with original query, expansion terms, and expanded query
+        """
+        # Generate expansion terms using LLM
+        prompt = self.expansion_prompt_template.format(
+            query=query,
+            max_expansions=self.max_expansions
+        )
 
- response = Settings.llm.complete(prompt).text.strip()
+        response = Settings.llm.complete(prompt).text.strip()
 
- # Parse expansion terms
- expansion_terms = [
- term.strip()
- for term in response.split('\n')
- if term.strip() and not term.strip().startswith('#')
- ]
+        # Parse expansion terms
+        expansion_terms = [
+            term.strip()
+            for term in response.split('\n')
+            if term.strip() and not term.strip().startswith('#')
+        ]
 
- # Limit to max_expansions
- expansion_terms = expansion_terms[:self.max_expansions]
+        # Limit to max_expansions
+        expansion_terms = expansion_terms[:self.max_expansions]
 
- # Combine original query with expansion terms
- if expansion_terms:
- expanded_query = f"{query} {' '.join(expansion_terms)}"
- else:
- expanded_query = query
+        # Combine original query with expansion terms
+        if expansion_terms:
+            expanded_query = f"{query} {' '.join(expansion_terms)}"
+        else:
+            expanded_query = query
 
- return {
- 'original_query': query,
- 'expansion_terms': expansion_terms,
- 'expanded_query': expanded_query
- }
+        return {
+            'original_query': query,
+            'expansion_terms': expansion_terms,
+            'expanded_query': expanded_query
+        }
 
 
 """

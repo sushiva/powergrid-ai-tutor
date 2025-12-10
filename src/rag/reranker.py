@@ -22,47 +22,47 @@ except ImportError:
 
 
 class Reranker:
- """
- LLM-based reranker for retrieved chunks.
+    """
+    LLM-based reranker for retrieved chunks.
 
- The reranker takes initial retrieval results and uses an LLM to score
- each chunk's relevance to the query, returning only the most relevant ones.
- """
+    The reranker takes initial retrieval results and uses an LLM to score
+    each chunk's relevance to the query, returning only the most relevant ones.
+    """
 
- def __init__(self, top_n: int = None, choice_batch_size: int = None):one):
- """
- Initialize the reranker.
+    def __init__(self, top_n: int = None, choice_batch_size: int = None):
+        """
+        Initialize the reranker.
 
- Args:
- top_n: Number of top-ranked chunks to return after reranking (uses config.py if not provided)
- choice_batch_size: Number of chunks to consider in each batch (uses config.py if not provided)
- """
- self.top_n = top_n if top_n is not None else RERANKING["top_n"]
- choice_batch_size = choice_batch_size if choice_batch_size is not None else RERANKING["choice_batch_size"]
- self.reranker = LLMRerank(
- top_n=self.top_n,
- choice_batch_size=choice_batch_size
- )
- print(f"Initialized LLM Reranker (top_n={self.top_n})")
+        Args:
+            top_n: Number of top-ranked chunks to return after reranking (uses config.py if not provided)
+            choice_batch_size: Number of chunks to consider in each batch (uses config.py if not provided)
+        """
+        self.top_n = top_n if top_n is not None else RERANKING["top_n"]
+        choice_batch_size = choice_batch_size if choice_batch_size is not None else RERANKING["choice_batch_size"]
+        self.reranker = LLMRerank(
+            top_n=self.top_n,
+            choice_batch_size=choice_batch_size
+        )
+        print(f"Initialized LLM Reranker (top_n={self.top_n})")
 
- def rerank(self, nodes: List[NodeWithScore], query_str: str) -> List[NodeWithScore]:
- """
- Rerank nodes based on their relevance to the query.
+    def rerank(self, nodes: List[NodeWithScore], query_str: str) -> List[NodeWithScore]:
+        """
+        Rerank nodes based on their relevance to the query.
 
- Args:
- nodes: List of retrieved nodes with similarity scores
- query_str: The user's query
+        Args:
+            nodes: List of retrieved nodes with similarity scores
+            query_str: The user's query
 
- Returns:
- List of reranked nodes (top_n most relevant)
- """
- if not nodes:
- return nodes
+        Returns:
+            List of reranked nodes (top_n most relevant)
+        """
+        if not nodes:
+            return nodes
 
- # Use LLM to score and rerank
- reranked_nodes = self.reranker.postprocess_nodes(
- nodes,
- query_str=query_str
- )
+        # Use LLM to score and rerank
+        reranked_nodes = self.reranker.postprocess_nodes(
+            nodes,
+            query_str=query_str
+        )
 
- return reranked_nodes
+        return reranked_nodes
