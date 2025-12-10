@@ -16,8 +16,8 @@ class ArxivCollector:
  """
  
  def __init__(self, output_dir: str = "data/raw/papers"):
- """
- Initialize ArXiv collector.
+    """
+Initialize ArXiv collector.
  
  Args:
  output_dir: Directory to save downloaded papers
@@ -30,7 +30,7 @@ class ArxivCollector:
  self.metadata = self._load_metadata()
  
  def _load_metadata(self) -> Dict:
- """Load existing metadata or create new."""
+    """Load existing metadata or create new."""
  if self.metadata_file.exists():
  with open(self.metadata_file, 'r') as f:
  return json.load(f)

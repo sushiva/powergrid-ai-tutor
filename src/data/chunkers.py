@@ -14,7 +14,18 @@ Text chunking strategies for splitting documents into smaller pieces.
 from typing import List
 from llama_index.core import Document
 from llama_index.core.node_parser import SentenceSplitter
+import sys
+from pathlib import Path
 
+# Add project root to path for config import
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
+
+try:
+    from config import CHUNKING
+except ImportError:
+    # Fallback if config.py not found
+    CHUNKING = {"chunk_size": 512, "chunk_overlap": 50}
 
 
 class TextChunker:
@@ -22,17 +33,17 @@ class TextChunker:
  Handles splitting documents into chunks for embedding and retrieval.
  """
  
- def __init__(self, chunk_size: int = 512, chunk_overlap: int = 50):
+ def __init__(self, chunk_size: int = None, chunk_overlap: int = None):e):
  """
  Initialize the chunker with specified parameters.
  
  Args:
- chunk_size: Maximum number of tokens per chunk
- chunk_overlap: Number of tokens to overlap between chunks
- (helps maintain context across chunk boundaries)
+ chunk_size: Maximum number of tokens per chunk (uses config.py if not provided)
+ chunk_overlap: Number of tokens to overlap between chunks (uses config.py if not provided)
  """
- self.chunk_size = chunk_size
- self.chunk_overlap = chunk_overlap
+ # Use config values if not provided
+ self.chunk_size = chunk_size if chunk_size is not None else CHUNKING["chunk_size"]
+ self.chunk_overlap = chunk_overlap if chunk_overlap is not None else CHUNKING["chunk_overlap"]
  
  # SentenceSplitter from LlamaIndex
  # Splits on sentence boundaries for better semantic coherence
