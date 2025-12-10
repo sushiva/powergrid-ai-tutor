@@ -73,6 +73,145 @@ python app.py
 
 ## System Architecture
 
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                          POWERGRID AI TUTOR ARCHITECTURE                        │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  USER INTERFACE (Gradio)                                                        │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │
+│  │ API Key Input│  │ Feature Toggle│ │ Topic Filter │  │ Chat History │       │
+│  │ (Runtime)    │  │ (On/Off)      │ │ (Solar/Wind) │  │ (Context)    │       │
+│  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘       │
+└─────────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  QUERY PROCESSING LAYER                                                         │
+│  ┌────────────────────────────────────────────────────────────────────┐         │
+│  │  User Query: "How does solar panel efficiency improve?"            │         │
+│  └────────────────────────────────────────────────────────────────────┘         │
+│                                      │                                           │
+│                                      ▼                                           │
+│  ┌─────────────────────────────────────────────────────────────────┐            │
+│  │  Query Expansion (Optional)                                     │            │
+│  │  • Original: "solar panel efficiency"                           │            │
+│  │  • Expanded: "photovoltaic efficiency", "PV performance",       │            │
+│  │              "solar cell optimization", "MPPT efficiency"       │            │
+│  └─────────────────────────────────────────────────────────────────┘            │
+└─────────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  RETRIEVAL LAYER (Hybrid Search)                                                │
+│  ┌──────────────────────────────┐  ┌──────────────────────────────┐            │
+│  │   SEMANTIC SEARCH (70%)      │  │   KEYWORD SEARCH (30%)       │            │
+│  │                              │  │                              │            │
+│  │  ┌────────────────────────┐  │  │  ┌────────────────────────┐  │            │
+│  │  │ Embedding Model        │  │  │  │ BM25 Algorithm         │  │            │
+│  │  │ BAAI/bge-small-en-v1.5 │  │  │  │ Keyword matching       │  │            │
+│  │  │ (384 dimensions)       │  │  │  │ Term frequency         │  │            │
+│  │  └────────────────────────┘  │  │  └────────────────────────┘  │            │
+│  │           │                   │  │           │                   │            │
+│  │           ▼                   │  │           ▼                   │            │
+│  │  ┌────────────────────────┐  │  │  ┌────────────────────────┐  │            │
+│  │  │ FAISS Vector Store     │  │  │  │ Inverted Index         │  │            │
+│  │  │ 2,166 chunks indexed   │  │  │  │ 2,166 chunks indexed   │  │            │
+│  │  └────────────────────────┘  │  │  └────────────────────────┘  │            │
+│  │           │                   │  │           │                   │            │
+│  │           ▼                   │  │           ▼                   │            │
+│  │  Top-15 semantic matches     │  │  Top-15 keyword matches      │            │
+│  └──────────────────────────────┘  └──────────────────────────────┘            │
+│                    │                              │                              │
+│                    └──────────────┬───────────────┘                              │
+│                                   ▼                                              │
+│  ┌─────────────────────────────────────────────────────────────────┐            │
+│  │  Hybrid Fusion (Reciprocal Rank Fusion)                         │            │
+│  │  Combines both results with weighted scoring                    │            │
+│  │  Output: Top-10 candidates                                      │            │
+│  └─────────────────────────────────────────────────────────────────┘            │
+└─────────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  RERANKING LAYER (Optional)                                                     │
+│  ┌─────────────────────────────────────────────────────────────────┐            │
+│  │  Cohere Reranker / LLM-based Reranking                          │            │
+│  │  • Evaluates relevance of each chunk to original query          │            │
+│  │  • Scores: 0.0 - 1.0 (higher = more relevant)                   │            │
+│  │  • Filters & sorts by relevance score                           │            │
+│  │  Output: Top-3 most relevant chunks                             │            │
+│  └─────────────────────────────────────────────────────────────────┘            │
+└─────────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  GENERATION LAYER                                                               │
+│  ┌─────────────────────────────────────────────────────────────────┐            │
+│  │  Context Assembly                                                │            │
+│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐                       │            │
+│  │  │ Chunk 1  │  │ Chunk 2  │  │ Chunk 3  │  + Metadata           │            │
+│  │  │ Score:95%│  │ Score:87%│  │ Score:82%│    (source, topic)    │            │
+│  │  └──────────┘  └──────────┘  └──────────┘                       │            │
+│  └─────────────────────────────────────────────────────────────────┘            │
+│                                      │                                           │
+│                                      ▼                                           │
+│  ┌─────────────────────────────────────────────────────────────────┐            │
+│  │  LLM Generation (OpenAI GPT-4o-mini / Gemini 1.5 Flash)         │            │
+│  │                                                                  │            │
+│  │  Prompt Engineering:                                             │            │
+│  │  • System: "You are an electrical engineering expert..."        │            │
+│  │  • Context: [Retrieved chunks with metadata]                    │            │
+│  │  • Query: "How does solar panel efficiency improve?"            │            │
+│  │  • Constraints: Answer only from context, cite sources          │            │
+│  │                                                                  │            │
+│  │  Temperature: 0.1 (deterministic)                               │            │
+│  │  Max tokens: 1000                                                │            │
+│  └─────────────────────────────────────────────────────────────────┘            │
+│                                      │                                           │
+│                                      ▼                                           │
+│  ┌─────────────────────────────────────────────────────────────────┐            │
+│  │  Generated Answer + Source Attribution                           │            │
+│  │  "Solar panel efficiency improves through MPPT optimization..."  │            │
+│  │                                                                  │            │
+│  │  Sources:                                                        │            │
+│  │  • paper_solar_efficiency.pdf (Relevance: 95%)                  │            │
+│  │  • paper_pv_optimization.pdf (Relevance: 87%)                   │            │
+│  │  • paper_mppt_control.pdf (Relevance: 82%)                      │            │
+│  └─────────────────────────────────────────────────────────────────┘            │
+└─────────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  RESPONSE TO USER                                                               │
+│  • Processing time: 2.4s                                                        │
+│  • Cost: $0.0018                                                                │
+│  • Tokens: Input: 2100, Output: 450                                            │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+                        DATA FLOW & KNOWLEDGE BASE
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  OFFLINE PROCESSING (One-time Setup)                                            │
+│                                                                                  │
+│  50 ArXiv PDFs (852 pages)                                                      │
+│         │                                                                        │
+│         ▼                                                                        │
+│  Text Extraction & Cleaning                                                     │
+│         │                                                                        │
+│         ▼                                                                        │
+│  Chunking (512 tokens, 50 overlap) → 2,166 chunks                              │
+│         │                                                                        │
+│         ▼                                                                        │
+│  Metadata Enrichment (topic, source, authors)                                   │
+│         │                                                                        │
+│         ├──────────────┬─────────────┐                                          │
+│         ▼              ▼             ▼                                          │
+│  FAISS Index    BM25 Index    JSON Metadata                                     │
+│  (Semantic)     (Keyword)     (Filtering)                                       │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
 ### Knowledge Base
 - **50 ArXiv Papers** (852 pages, 2,166 chunks)
 - **Topics**: Solar PV, wind energy, battery storage, grid integration, smart grids
